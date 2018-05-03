@@ -1,0 +1,1 @@
+/media/remote_home/akukleva/caffe_untrimmednet/caffe_debug2/test/cat.jpg 0

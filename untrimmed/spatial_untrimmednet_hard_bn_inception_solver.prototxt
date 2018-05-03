@@ -1,0 +1,30 @@
+net: "/media/remote_home/akukleva/caffe_untrimmednet/caffe/untrimmed/spatial_untrimmednet_hard_bn_inception_train_val.prototxt"
+
+# testing parameter
+test_iter: 10
+test_interval: 5
+test_initialization: true
+
+# output
+display: 1
+average_loss: 1
+snapshot: 500
+snapshot_prefix: "spatial_untrimmednet_hard_bn_inception_seg3_top3"
+debug_info: false
+
+# learning rate
+base_lr: 0.001
+lr_policy: "step"
+gamma: 0.1
+stepsize: 5
+max_iter: 10
+iter_size: 1
+
+# parameter of SGD
+momentum: 0.9
+weight_decay: 0.0005
+clip_gradients: 20
+
+# GPU setting
+solver_mode: GPU
+

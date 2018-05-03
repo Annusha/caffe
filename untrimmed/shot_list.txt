@@ -1,0 +1,1 @@
+/media/remote_home/akukleva/caffe_untrimmednet/caffe/untrimmed/sport_shot.txt 284

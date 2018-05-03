@@ -1,0 +1,87 @@
+name: "TestNet"
+layer {
+  name: "data"
+  type: "SequenceData"
+  top: "data"
+  top: "label"
+  include {
+    phase: TRAIN
+  }
+  sequence_data_param {
+#    feature_source: "/media/remote_home/akukleva/mnt/cvg30_work_kuehne/Weak_YouTube/train/vid_clips_noOld/feature_flow"
+#    feature_description: "/media/remote_home/akukleva/scripts/flow_descriptors.txt"
+    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
+    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
+    feature_size: 1024
+    d_bytes: 7
+    batch_size: 1
+    num_frames: 1
+    num_segments: 1
+    num_shots: 1
+    modality: FLOW
+    shuffle: true
+  }
+}
+layer {
+  name: "data"
+  type: "SequenceData"
+  top: "data"
+  top: "label"
+  include {
+    phase: TEST
+  }
+  sequence_data_param {
+    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
+    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
+    feature_size: 1024
+    d_bytes: 7
+    batch_size: 1
+    num_frames: 1
+    num_segments: 1
+    num_shots: 1
+    modality: FLOW
+    shuffle: true
+  }
+}
+layer {
+  name: "fc1"
+  type: "InnerProduct"
+  bottom: "data"
+  top: "fc1"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 1 
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "accuracy"
+  type: "Accuracy"
+  bottom: "fc1"
+  bottom: "label"
+  top: "accuracy"
+  include {
+    phase: TEST
+  }
+}
+layer {
+  name: "loss"
+  type: "EuclideanLoss"
+  bottom: "fc1"
+  bottom: "label"
+  top: "loss"
+}

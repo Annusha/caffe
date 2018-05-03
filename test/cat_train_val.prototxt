@@ -1,0 +1,47 @@
+name: "CaffeNet"
+layer {
+  name: "data"
+  type: "ImageData"
+  top: "data"
+  top: "label"
+  transform_param {
+    mirror: false
+    crop_size: 227
+  }
+  image_data_param {
+    source: "/media/remote_home/akukleva/caffe_untrimmednet/caffe_debug2/test/cat.txt"
+    batch_size: 1
+    new_height: 256
+    new_width: 256
+  }
+}
+
+layer {
+  name: "fc8"
+  type: "InnerProduct"
+  bottom: "data"
+  top: "fc8"
+  inner_product_param {
+    num_output: 1
+  }
+}
+layer {
+  name: "prob"
+  type: "Softmax"
+  bottom: "fc8"
+  top: "prob"
+}
+layer {
+  name: "accuracy"
+  type: "Accuracy"
+  bottom: "prob"
+  bottom: "label"
+  top: "accuracy"
+}
+layer {
+  name: "loss"
+  type: "SoftmaxWithLoss"
+  bottom: "fc8"
+  bottom: "label"
+  top: "loss"
+}
