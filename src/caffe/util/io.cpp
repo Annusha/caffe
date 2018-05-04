@@ -409,7 +409,7 @@ bool ReadSegmentFlowToDatum(const string& filename, const int label,
 	return true;
 }
 
-bool ReadFeaturesToDatum(const string& filename, const int label, const int offset,
+bool ReadFeaturesToDatum(const string& filename, const int label, const vector<int> offsets,
 		const int feature_size, const int length, Datum* datum) {
 	// TODO: add offsets
 	// offset : from what feature read file
@@ -420,8 +420,8 @@ bool ReadFeaturesToDatum(const string& filename, const int label, const int offs
 	std::ifstream infile(filename.c_str());
 	// set offset in file, take into account spaces
 	// offset in lines
-	std::streampos byte_offset = (d_bytes + 1) * feature_size * offset;
-	std::streampos to_read = (d_bytes + 1) * feature_size * length;
+//	std::streampos byte_offset = (d_bytes + 1) * feature_size * offset;
+//	std::streampos to_read = (d_bytes + 1) * feature_size * length;
 
 	datum->set_height(1);
 	datum->set_width(feature_size);
@@ -431,20 +431,38 @@ bool ReadFeaturesToDatum(const string& filename, const int label, const int offs
 	datum->clear_float_data();
 //	datum->set_encoded(true);
 
-	// TODO: check if offsets in file boundaries
 	std::string line_buffer;
-	for(int i = 0; i <= offset; ++i) {
-		std::getline(infile, line_buffer);
+	for(int i = 0; i < offsets.size(); ++i) {
+		int offset = offsets[i];
+		infile.seekg(0, infile.beg);
+		for(int line = 0; line < offset; ++line) {
+			std::getline(infile, line_buffer);
+		}
+		for(int j = 0; j < length; ++j) {
+			std::getline(infile, line_buffer);
+			std::istringstream in(line_buffer);
+			float x;
+			while(in >> x) {
+				datum->add_float_data(x);
+			}
+		}
 	}
+	infile.close();
+
+	// TODO: check if offsets in file boundaries
+//	std::string line_buffer;
+//	for(int i = 0; i <= offset; ++i) {
+//		std::getline(infile, line_buffer);
+//	}
 //	infile.seekg(byte_offset, infile.beg);
 //	std::string line_buffer(to_read, ' ');
 //	infile.read(&line_buffer[0], to_read);
-	infile.close();
-	std::istringstream in(line_buffer);
-	float x;
-	while(in >> x) {
-		datum->add_float_data(x);
-	}
+//	infile.close();
+//	std::istringstream in(line_buffer);
+//	float x;
+//	while(in >> x) {
+//		datum->add_float_data(x);
+//	}
 
 	return true;
 }

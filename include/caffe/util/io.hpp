@@ -101,7 +101,7 @@ bool ReadSegmentFlowToDatum(const string& filename, const int label,
 bool ReadSegmentRGBToDatum(const string& filename, const int label,
     const vector<int> offsets, const int height, const int width, const int length, Datum* datum, bool is_color,
                            const char* name_pattern);
-bool ReadFeaturesToDatum(const string& filename, const int label, const int offset,
+bool ReadFeaturesToDatum(const string& filename, const int label, const vector<int> offsets,
 		const int feature_size, const int length, Datum* datum);
 
 inline bool ReadImageToDatum(const string& filename, const int label,

@@ -1,6 +1,6 @@
 net: "test/train_val.prototxt"
 test_iter: 10
-test_interval: 1000
+test_interval: 2
 base_lr: 0.01
 lr_policy: "step"
 gamma: 0.1

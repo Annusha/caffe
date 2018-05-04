@@ -13,12 +13,12 @@ layer {
     feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
     feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
     feature_size: 1024
-    d_bytes: 7
+    #d_bytes: 7
     batch_size: 1
-    num_frames: 1
+    num_frames: 3
     num_segments: 1
     num_shots: 1
-    modality: FLOW
+    modality: RGB
     shuffle: true
   }
 }
@@ -34,12 +34,12 @@ layer {
     feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
     feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
     feature_size: 1024
-    d_bytes: 7
+    #d_bytes: 7
     batch_size: 1
-    num_frames: 1
+    num_frames: 3
     num_segments: 1
     num_shots: 1
-    modality: FLOW
+    modality: RGB
     shuffle: true
   }
 }
@@ -57,7 +57,7 @@ layer {
     decay_mult: 0
   }
   inner_product_param {
-    num_output: 1 
+    num_output: 1
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -80,7 +80,7 @@ layer {
 }
 layer {
   name: "loss"
-  type: "EuclideanLoss"
+  type: "SoftmaxWithLoss"
   bottom: "fc1"
   bottom: "label"
   top: "loss"

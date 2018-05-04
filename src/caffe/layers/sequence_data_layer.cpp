@@ -57,7 +57,7 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 
 	// TODO: uniform sampling from sequence, like making shots
 	int uniform_sampling = 5;
-	vector<std::pair<int, int>> tmp_vec;
+	vector<std::pair<int, int> > tmp_vec;
 	int start = 0;
 	int end = 0;
 	int step = 0;
@@ -65,30 +65,32 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 		step = lines_duration_[vid] / uniform_sampling;
 		end = step;
 		for(int shot = 0; shot < uniform_sampling; ++shot) {
-			if(start != 0) {
-				start += step;
-				end = start + step;
-			}
 			if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_RGB)
 				end -= 1;
 			if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_FLOW)
 				end -= 2;
-			if(end - start + 1 > num_frames)
+			if(end - start + 1 > num_frames) {
 				tmp_vec.push_back(std::make_pair(start, end));
+				start += step;
+				end = start + step;
+			}
 		}
 		if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_RGB)
 			end = lines_duration_[vid];
 		if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_FLOW)
 			end = lines_duration_[vid] - 1;
-		if(end - start + 1 > num_frames)
+		if(end - start + 1 > num_frames) {
 			tmp_vec.push_back(std::make_pair(start, end));
+			start += step;
+			end = start + step;
+		}
 		lines_shot_.push_back(tmp_vec);
 	}
 
 	// TODO: shuffle
 
 	LOG(INFO) << "A total of " << lines_.size() << " videos.";
-	LOG(INFO) << "A total of " << lines_shot_.size() << " samples.";
+	LOG(INFO) << "A total of " << lines_shot_.size() << " shots.";
 
 	const unsigned int frame_prefectch_rng_seed = caffe_rng_rand();
 	frame_prefetch_rng_.reset(new Caffe::RNG(frame_prefectch_rng_seed));
@@ -98,9 +100,34 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 	vector<std::pair<int, int> > cur_shot_list = lines_shot_[lines_id_];
 	vector<int> offsets;
 
+	for(int i = 0; i < num_shots; ++i) {
+		int shot_idx = i;
+		if(i >= cur_shot_list.size()) {
+			caffe::rng_t* frame_rng = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+			shot_idx = (*frame_rng)() % (cur_shot_list.size());
+		}
+		int start_idx = cur_shot_list[shot_idx].first;
+		int end_idx = cur_shot_list[shot_idx].second;
+		int average_duration = (int) (end_idx - start_idx + 1) / num_segments;
+		for(int j = 0; j < num_segments; ++j) {
+			if(average_duration < num_frames) {
+				offsets.push_back(start_idx);
+				continue;
+			}
+			caffe::rng_t* frame_rng1 = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+			int offset = (*frame_rng1)() % (average_duration - num_frames + 1);
+			offsets.push_back(0);
+//			offsets.push_back(start_idx + offset + j * average_duration);
+		}
+	}
+
+
 	// TODO: choose random label
-	int label = lines_[lines_id_].second[0];
-	CHECK(ReadFeaturesToDatum(lines_[lines_id_].first, label, 0, feature_size, num_frames, &datum));
+	caffe::rng_t* label_rng = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+	int label_idx = (*label_rng)() % (lines_[lines_id_].second.size());
+	int label = lines_[lines_id_].second[label_idx];
+
+	CHECK(ReadFeaturesToDatum(lines_[lines_id_].first, label, offsets, feature_size, num_frames, &datum));
 
 	const int batch_size = this->layer_param_.sequence_data_param().batch_size();
 	top[0]->Reshape(batch_size, datum.channels(), datum.height(), datum.width());
@@ -111,10 +138,6 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 
 	top[1]->Reshape(batch_size, 1, 1, 1);
 	this->prefetch_label_.Reshape(batch_size, 1, 1, 1);
-
-//	vector<int> label_shape(1, batch_size);
-//	top[1]->Reshape(label_shape);
-//	this->prefetch_label_.Reshape(label_shape);
 
 	vector<int> top_shape = this->data_transformer_->InferBlobShape(datum);
 	this->transformed_data_.Reshape(top_shape);
@@ -150,13 +173,40 @@ void SequenceDataLayer<Dtype>::InternalThreadEntry(){
 	for(int item_id = 0; item_id < batch_size; ++item_id) {
 		CHECK_GT(lines_size, lines_id_);
 
-		int label = lines_[lines_id_].second[0];
-		ReadFeaturesToDatum(lines_[lines_id_].first, label, 0, feature_size, num_frames, &datum);
+		vector<std::pair<int, int> > cur_shot_list = lines_shot_[lines_id_];
+		// TODO: shuffle shots
+		vector<int> offsets;
+
+		for(int i = 0; i < num_shots; ++i) {
+			int shot_idx = i;
+			if(i >= cur_shot_list.size()) {
+				caffe::rng_t* frame_rng1 = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+				shot_idx = (*frame_rng1)() % (cur_shot_list.size());
+			}
+			int start_idx = cur_shot_list[shot_idx].first;
+			int end_idx = cur_shot_list[shot_idx].second;
+			int average_duration = (int) (end_idx - start_idx + 1) / num_segments;
+			for(int j = 0; j < num_segments; ++j) {
+				if(average_duration < num_frames) {
+					offsets.push_back(start_idx);
+					continue;
+				}
+				caffe::rng_t* frame_rng2 = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+				int offset = (*frame_rng2)() % (average_duration - num_frames + 1);
+				offsets.push_back(0);
+//				offsets.push_back(start_idx + offset + j * average_duration);
+			}
+		}
+
+		caffe::rng_t* label_rng = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
+		int label_idx = (*label_rng)() % (lines_[lines_id_].second.size());
+		int label = lines_[lines_id_].second[label_idx];
+		ReadFeaturesToDatum(lines_[lines_id_].first, label, offsets, feature_size, num_frames, &datum);
 
 		int offset1 = this->prefetch_data_.offset(item_id);
 		this->transformed_data_.set_cpu_data(top_data + offset1);
 		this->data_transformer_->Transform(datum, &(this->transformed_data_));
-		top_label[item_id] = lines_[lines_id_].second[0];
+		top_label[item_id] = lines_[lines_id_].second[label_idx];
 
 		++lines_id_;
 		if(lines_id_ >= lines_size) {
