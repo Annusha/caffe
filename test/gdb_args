@@ -2,3 +2,8 @@ gdb --args /media/remote_home/akukleva/caffe_untrimmednet/caffe/build/tools/caff
 
 
 train --solver=/media/remote_home/akukleva/caffe_untrimmednet/caffe_debug2/test/cat_solver.prototxt
+
+rsync -aznP cvg30:/media/work/kuehne/Weak_YouTube/train/vid_clips_noOld/feature_s3_new.tar.gz /media/data/
+
+.build_debug/tools/caffe train --solver=test/solver_hard.prototxt |& tee test/shuffle_hard_test_b256_10
+.build_debug/tools/caffe train --solver=test/solver_hard2.prototxt |& tee test/shuffle_hard_test_b7_180

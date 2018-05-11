@@ -8,16 +8,17 @@ layer {
     phase: TRAIN
   }
   sequence_data_param {
-#    feature_source: "/media/remote_home/akukleva/mnt/cvg30_work_kuehne/Weak_YouTube/train/vid_clips_noOld/feature_flow"
-#    feature_description: "/media/remote_home/akukleva/scripts/flow_descriptors.txt"
-    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
-    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
-    feature_size: 1024
-    #d_bytes: 7
-    batch_size: 1
-    num_frames: 3
-    num_segments: 1
-    num_shots: 1
+#    feature_source: "/media/remote_home/akukleva/mnt/cvg30_work_kuehne/Weak_YouTube/train/vid_clips_noOld/feature_s3_new"
+#    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/spatial_descriptor_test.txt"
+#    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
+#    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
+    feature_source: "/media/data/feature_auto/vids"
+    feature_description: "/media/data/descriptors/auto_descriptors.txt"
+    feature_size: 257
+    batch_size: 7
+    num_frames: 1
+    num_segments: 3
+    num_shots: 7
     modality: RGB
     shuffle: true
   }
@@ -31,14 +32,17 @@ layer {
     phase: TEST
   }
   sequence_data_param {
-    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
-    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
-    feature_size: 1024
-    #d_bytes: 7
+#    feature_source: "/media/remote_home/akukleva/mnt/cvg30_work_kuehne/Weak_YouTube/train/vid_clips_noOld/feature_s3_new"
+#    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/spatial_descriptor_test.txt"
+#    feature_source: "/media/remote_home/akukleva/scripts/video_descriptors"
+#    feature_description: "/media/remote_home/akukleva/scripts/video_descriptors/test_descriptor.txt"
+    feature_source: "/media/data/feature_auto/vids"
+    feature_description: "/media/data/descriptors/auto_descriptors.txt"
+    feature_size: 257
     batch_size: 1
-    num_frames: 3
-    num_segments: 1
-    num_shots: 1
+    num_frames: 1
+    num_segments: 3
+    num_shots: 7
     modality: RGB
     shuffle: true
   }
@@ -57,7 +61,57 @@ layer {
     decay_mult: 0
   }
   inner_product_param {
-    num_output: 1
+    num_output: 100
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "fc2"
+  type: "InnerProduct"
+  bottom: "fc1"
+  top: "fc2"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 50
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "fc3"
+  type: "InnerProduct"
+  bottom: "fc2"
+  top: "fc3"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 513
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -71,7 +125,7 @@ layer {
 layer {
   name: "accuracy"
   type: "Accuracy"
-  bottom: "fc1"
+  bottom: "fc3"
   bottom: "label"
   top: "accuracy"
   include {
@@ -81,7 +135,7 @@ layer {
 layer {
   name: "loss"
   type: "SoftmaxWithLoss"
-  bottom: "fc1"
+  bottom: "fc3"
   bottom: "label"
   top: "loss"
 }
