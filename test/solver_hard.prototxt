@@ -1,0 +1,23 @@
+net: "test/train_val_hard.prototxt"
+test_iter: 1
+test_interval: 500
+test_initialization: true
+
+display: 20
+average_loss: 20
+debug_info: false
+
+base_lr: 0.001
+lr_policy: "step"
+gamma: 0.1
+stepsize: 4000
+max_iter: 10000
+iter_size: 2
+
+momentum: 0.9
+weight_decay: 0.0005
+clip_gradients: 20
+
+solver_mode: GPU
+snapshot: 2000
+snapshot_prefix: "test/shuffle_test_hard_b256_10t_binary"

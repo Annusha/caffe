@@ -10,6 +10,7 @@
 #include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
+#include "caffe/util/benchmark.hpp"
 
 #ifdef USE_MPI
 #include "mpi.h"
@@ -42,6 +43,7 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 
 	while(getline(infile, line)) {
 		std::istringstream iss(line);
+//		LOG(INFO) << "file: " << iss;
 		string filename;
 		vector<int> labels;
 		int label;
@@ -57,40 +59,42 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 
 	// TODO: uniform sampling from sequence, like making shots
 	int uniform_sampling = 5;
-	vector<std::pair<int, int> > tmp_vec;
-	int start = 0;
-	int end = 0;
-	int step = 0;
 	for(int vid = 0; vid < lines_duration_.size(); ++vid) {
-		step = lines_duration_[vid] / uniform_sampling;
+		vector<std::pair<int, int> > tmp_vec;
+		int start = 0;
+		int end = 0;
+		int step = 0;
+		int lenn = lines_duration_[vid];
+		step = (int) lines_duration_[vid] / uniform_sampling;
 		end = step;
 		for(int shot = 0; shot < uniform_sampling; ++shot) {
-			if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_RGB)
-				end -= 1;
-			if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_FLOW)
-				end -= 2;
+			end -= 1;
 			if(end - start + 1 > num_frames) {
 				tmp_vec.push_back(std::make_pair(start, end));
-				start += step;
-				end = start + step;
 			}
-		}
-		if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_RGB)
-			end = lines_duration_[vid];
-		if(this->layer_param_.sequence_data_param().modality() == SequenceDataParameter_Modality_FLOW)
-			end = lines_duration_[vid] - 1;
-		if(end - start + 1 > num_frames) {
-			tmp_vec.push_back(std::make_pair(start, end));
 			start += step;
 			end = start + step;
+		}
+		end = lines_duration_[vid] - 1;
+		if(end - start + 1 > num_frames) {
+			tmp_vec.push_back(std::make_pair(start, end));
 		}
 		lines_shot_.push_back(tmp_vec);
 	}
 
 	// TODO: shuffle
+	if (this->layer_param_.sequence_data_param().shuffle()){
+		const unsigned int prefectch_rng_seed = caffe_rng_rand();
+		prefetch_rng_1_.reset(new Caffe::RNG(prefectch_rng_seed));
+		prefetch_rng_2_.reset(new Caffe::RNG(prefectch_rng_seed));
+		prefetch_rng_3_.reset(new Caffe::RNG(prefectch_rng_seed));
+		ShuffleSequences();
+}
 
 	LOG(INFO) << "A total of " << lines_.size() << " videos.";
 	LOG(INFO) << "A total of " << lines_shot_.size() << " shots.";
+//	for (int i = 0; i < lines_shot_.size(); ++i)
+//		LOG(INFO) << lines_[i].first << " " << lines_shot_[i].size();
 
 	const unsigned int frame_prefectch_rng_seed = caffe_rng_rand();
 	frame_prefetch_rng_.reset(new Caffe::RNG(frame_prefectch_rng_seed));
@@ -116,8 +120,8 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 			}
 			caffe::rng_t* frame_rng1 = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
 			int offset = (*frame_rng1)() % (average_duration - num_frames + 1);
-			offsets.push_back(0);
-//			offsets.push_back(start_idx + offset + j * average_duration);
+//			offsets.push_back(0);
+			offsets.push_back(start_idx + offset + j * average_duration);
 		}
 	}
 
@@ -127,6 +131,7 @@ void SequenceDataLayer<Dtype>:: DataLayerSetUp(const vector<Blob<Dtype>*>& botto
 	int label_idx = (*label_rng)() % (lines_[lines_id_].second.size());
 	int label = lines_[lines_id_].second[label_idx];
 
+	LOG(INFO) << lines_[lines_id_].first << " " << lines_duration_[lines_id_];
 	CHECK(ReadFeaturesToDatum(lines_[lines_id_].first, label, offsets, feature_size, num_frames, &datum));
 
 	const int batch_size = this->layer_param_.sequence_data_param().batch_size();
@@ -147,7 +152,7 @@ template <typename Dtype>
 void SequenceDataLayer<Dtype>::ShuffleSequences(){
 	caffe::rng_t* prefetch_rng1 = static_cast<caffe::rng_t*>(prefetch_rng_1_->generator());
 	caffe::rng_t* prefetch_rng2 = static_cast<caffe::rng_t*>(prefetch_rng_2_->generator());
-        caffe::rng_t* prefetch_rng3 = static_cast<caffe::rng_t*>(prefetch_rng_3_->generator());
+    caffe::rng_t* prefetch_rng3 = static_cast<caffe::rng_t*>(prefetch_rng_3_->generator());
 	shuffle(lines_.begin(), lines_.end(), prefetch_rng1);
 	shuffle(lines_duration_.begin(), lines_duration_.end(), prefetch_rng2);
 	shuffle(lines_shot_.begin(), lines_shot_.end(), prefetch_rng3);
@@ -155,6 +160,11 @@ void SequenceDataLayer<Dtype>::ShuffleSequences(){
 
 template <typename Dtype>
 void SequenceDataLayer<Dtype>::InternalThreadEntry(){
+	CPUTimer batch_timer;
+	batch_timer.Start();
+	double read_time = 0;
+	double trans_time = 0;
+	CPUTimer timer;
 
 	Datum datum;
 	CHECK(this->prefetch_data_.count());
@@ -171,12 +181,12 @@ void SequenceDataLayer<Dtype>::InternalThreadEntry(){
 	const int lines_size = lines_.size();
 
 	for(int item_id = 0; item_id < batch_size; ++item_id) {
+		timer.Start();
 		CHECK_GT(lines_size, lines_id_);
 
 		vector<std::pair<int, int> > cur_shot_list = lines_shot_[lines_id_];
-		// TODO: shuffle shots
 		vector<int> offsets;
-
+		int lenn = lines_duration_[lines_id_];
 		for(int i = 0; i < num_shots; ++i) {
 			int shot_idx = i;
 			if(i >= cur_shot_list.size()) {
@@ -193,8 +203,11 @@ void SequenceDataLayer<Dtype>::InternalThreadEntry(){
 				}
 				caffe::rng_t* frame_rng2 = static_cast<caffe::rng_t*>(frame_prefetch_rng_->generator());
 				int offset = (*frame_rng2)() % (average_duration - num_frames + 1);
-				offsets.push_back(0);
-//				offsets.push_back(start_idx + offset + j * average_duration);
+				int l = start_idx + offset + j * average_duration;
+				if(l == lenn) {
+					DLOG(INFO) << "bad offset ";
+				}
+				offsets.push_back(start_idx + offset + j * average_duration);
 			}
 		}
 
@@ -203,17 +216,29 @@ void SequenceDataLayer<Dtype>::InternalThreadEntry(){
 		int label = lines_[lines_id_].second[label_idx];
 		ReadFeaturesToDatum(lines_[lines_id_].first, label, offsets, feature_size, num_frames, &datum);
 
+		read_time += timer.MicroSeconds();
+		timer.Start();
+		int size_of = offsets.size();
 		int offset1 = this->prefetch_data_.offset(item_id);
 		this->transformed_data_.set_cpu_data(top_data + offset1);
 		this->data_transformer_->Transform(datum, &(this->transformed_data_));
+		trans_time += timer.MicroSeconds();
 		top_label[item_id] = lines_[lines_id_].second[label_idx];
 
 		++lines_id_;
 		if(lines_id_ >= lines_size) {
 			lines_id_ = 0;
+			if(this->layer_param_.sequence_data_param().shuffle()){
+				ShuffleSequences();
+			}
 		}
 
 	}
+
+	batch_timer.Stop();
+//	DLOG(INFO) << "Prefetch batch: " << batch_timer.MilliSeconds() << " ms.";
+//	DLOG(INFO) << "     Read time: " << read_time / 1000 << " ms.";
+//	DLOG(INFO) << "Transform time: " << trans_time / 1000 << " ms.";
 }
 
 INSTANTIATE_CLASS(SequenceDataLayer);

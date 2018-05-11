@@ -378,7 +378,7 @@ protected:
 	shared_ptr<Caffe::RNG> prefetch_rng_;
 	shared_ptr<Caffe::RNG> prefetch_rng_3_;
 	shared_ptr<Caffe::RNG> prefetch_rng_2_;
-        shared_ptr<Caffe::RNG> prefetch_rng_1_;
+    shared_ptr<Caffe::RNG> prefetch_rng_1_;
         // for random picking shot and frame
 	shared_ptr<Caffe::RNG> frame_prefetch_rng_;
 

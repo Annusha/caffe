@@ -415,37 +415,76 @@ bool ReadFeaturesToDatum(const string& filename, const int label, const vector<i
 	// offset : from what feature read file
 	// feature_size: number of elements per feature
 	// d_bytes: number of bytes in one valuable element (0.0000 = 6 bytes) without spaces
-	// length: number of features to read
+	// length: number of features to read = number of frames
 
-	std::ifstream infile(filename.c_str());
-	// set offset in file, take into account spaces
-	// offset in lines
-//	std::streampos byte_offset = (d_bytes + 1) * feature_size * offset;
-//	std::streampos to_read = (d_bytes + 1) * feature_size * length;
+//	std::ifstream infile(filename.c_str());
+	std::ifstream infile(filename.c_str(), std::ios::binary);
+	int size_o = offsets.size();
 
 	datum->set_height(1);
 	datum->set_width(feature_size);
 	datum->set_label(label);
-	datum->set_channels(length); // * offset.size()
+	datum->set_channels(length * offsets.size());
 	datum->clear_data();
 	datum->clear_float_data();
 //	datum->set_encoded(true);
 
+	/*
+	std::vector<std::string> file_buffer;
 	std::string line_buffer;
+	while(std::getline(infile, line_buffer)) {
+		file_buffer.push_back(line_buffer);
+	}
+	infile.close();
+
+//	std::string line_buffer;
+	int size_init = 0;
+	int file_size = file_buffer.size();
 	for(int i = 0; i < offsets.size(); ++i) {
 		int offset = offsets[i];
-		infile.seekg(0, infile.beg);
-		for(int line = 0; line < offset; ++line) {
-			std::getline(infile, line_buffer);
-		}
+//		infile.seekg(0, infile.beg);
+//		for(int line = 0; line < offset; ++line) {
+//			std::getline(infile, line_buffer);
+//		}
 		for(int j = 0; j < length; ++j) {
-			std::getline(infile, line_buffer);
+//			std::getline(infile, line_buffer);
+			line_buffer = file_buffer.at(offset);
 			std::istringstream in(line_buffer);
 			float x;
 			while(in >> x) {
 				datum->add_float_data(x);
 			}
 		}
+		int size_datum = datum->float_data_size();
+		if(size_init >= size_datum) {
+			LOG(INFO) << "loaded less features";
+		}
+		size_init = size_datum;
+
+	}
+//	if(datum->float_data_size() < 5300) {
+//		LOG(INFO) << "everything goes wrong";
+//	}
+	infile.close();
+*/
+
+	// read binary files
+	for(int i = 0; i < offsets.size(); ++i) {
+		int offset = offsets[i];
+
+		int to_read = feature_size * sizeof(float) * length;
+		infile.seekg(sizeof(float)*feature_size*offset, infile.beg);
+		std::string line_buffer(to_read, ' ');
+		infile.read(&line_buffer[0], to_read);
+		std::istringstream in(line_buffer);
+		float x;
+		while(in.read(reinterpret_cast<char *>(&x), sizeof(float))) {
+			datum->add_float_data(x);
+		}
+//		for(int j = 0; j < feature_size; ++j) {
+//			infile.read(reinterpret_cast<char *>(&x), sizeof(float));
+//			datum->add_float_data(x);
+//		}
 	}
 	infile.close();
 
